@@ -30,7 +30,8 @@ app.get('/margem', async (req, res) => {
     const texto = await buscaMargem(cpf, rep);
     res.type('text/plain').send(texto);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    const detail = err.response?.data?.message || err.response?.data?.error;
+    res.status(500).json({ error: detail || err.message });
   }
 });
 

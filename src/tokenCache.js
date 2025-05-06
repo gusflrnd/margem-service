@@ -1,5 +1,5 @@
 // src/tokenCache.js
-import jwtDecode from 'jwt-decode';
+import { jwtDecode } from 'jwt-decode';
 import { redis } from './redisClient.js';
 import axios from 'axios';
 import { BASE_HEADERS, LOGIN_URL, LOGIN, PASSWORD } from './gftConst.js';
