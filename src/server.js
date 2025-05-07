@@ -1,4 +1,3 @@
-
 import express from 'express';
 import helmet  from 'helmet';
 import morgan  from 'morgan';
@@ -14,9 +13,6 @@ const port = process.env.PORT || 3000;
 app.use(helmet());
 app.use(morgan('tiny'));
 app.use(express.json());
-
-/* ---------- rota GET / ---------- */
-app.get('/', (_req, res) => res.send('GFT Margem API running'));
 
 /* ---------- rota GET /margem ---------- */
 /**
@@ -43,18 +39,6 @@ app.get('/margem', async (req, res) => {
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
 /* ---------- inicia o servidor ---------- */
-app.listen(port, '0.0.0.0', () => {
-  console.log(`✓ GFT Margem service ready on http://0.0.0.0:${port}`);
-});
-
-process.on('SIGTERM', () => {
-  console.log('⛔ Processo recebeu SIGTERM');
-});
-
-process.on('exit', (code) => {
-  console.log(`⛔ Processo finalizado com código ${code}`);
-});
-
-process.on('uncaughtException', (err) => {
-  console.error('⛔ Erro não tratado:', err);
+app.listen(port, () => {
+  console.log(`✓ GFT Margem service ready on http://localhost:${port}`);
 });
