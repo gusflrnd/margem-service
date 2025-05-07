@@ -64,7 +64,7 @@ export async function buscaMargem(cpf, cpfLegalRep = '') {
   );
 
   if (!beneficiosAtivos.length) {
-    return 'Nenhum benefício ATIVO localizado para o CPF informado.';
+    return 'Negado: Nenhum benefício ATIVO localizado para o CPF informado.';
   }
 
   /* 2. Avalia a margem ------------------------------------------------------ */
@@ -78,10 +78,10 @@ export async function buscaMargem(cpf, cpfLegalRep = '') {
 
     return (
       `Benefício ${idx + 1}: ${numero}\n` +
-      `Margem disponível para empréstimo: ${brl(margemEmp)}\n` +
+      //`Possui Margem disponível para empréstimo: ${brl(margemEmp)}\n` +
       (possuiMargem
-        ? 'Situação: POSSUI margem (≥ 19)\n'
-        : 'Situação: NÃO possui margem (< 19)\n')
+        ? 'Aceito: POSSUI margem para empréstimo\n'
+        : 'Negado: NÃO possui margem nenhuma para empréstimo (< 19)\n')
     );
   });
 
