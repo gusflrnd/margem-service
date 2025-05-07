@@ -46,3 +46,5 @@ app.get('/health', (_req, res) => res.json({ ok: true }));
 app.listen(port, '0.0.0.0', () => {
   console.log(`✓ GFT Margem service ready on http://0.0.0.0:${port}`);
 });
+
+console.log(process.env.API_LOGIN)
