@@ -47,4 +47,14 @@ app.listen(port, '0.0.0.0', () => {
   console.log(`✓ GFT Margem service ready on http://0.0.0.0:${port}`);
 });
 
-console.log(process.env.API_LOGIN)
+process.on('SIGTERM', () => {
+  console.log('⛔ Processo recebeu SIGTERM');
+});
+
+process.on('exit', (code) => {
+  console.log(`⛔ Processo finalizado com código ${code}`);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('⛔ Erro não tratado:', err);
+});
