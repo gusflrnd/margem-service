@@ -22,148 +22,69 @@ const BASE_HEADERS = {
     'Sec-Fetch-Site': 'cross-site',
 };
 
-const LOGIN_URL = 'https://webservicesstaging.gfttech.com.br/api/v2/logar';
-const BENEFITS_URL = 'https://acelereaistaging.gfttech.com.br/api/v1/marketplace/benefits';
-const SIMULATE_URL = 'https://acelereaistaging.gfttech.com.br/api/v2/engine/simulate';
-
-
-const BANKS = (process.env.BANK_LIST || '2')
-  .split(',')
-  .map(s => s.trim())
-  .filter(Boolean);
+const BENEFITS_URL =
+  'https://acelereaistaging.gfttech.com.br/api/v1/marketplace/benefits';
 
 /*---------------- Credenciais ----------------*/
 const LOGIN = process.env.API_LOGIN;
-const PASSWORD = process.env.API_PASSWORD;
 
-/*---------------- Cache simples ----------------*/
-let bearer;           // memo em memória
-let tokenTs = 0;
-const TTL = (+process.env.TOKEN_TTL_MIN || 15) * 60_000;  // padrão 15 min
-
+/*---------------- Funções utilitárias ----------------*/
 async function getToken() {
-    return getTokenCached(LOGIN);
+  return getTokenCached(LOGIN); // cache já implementado
 }
+const brl = v =>
+  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+    v ?? 0,
+  );
 
-const brl = v => new Intl.NumberFormat(
-    'pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
-
-/*---------------- Função exportada ----------------*/
 /* ---------------- FUNÇÃO PRINCIPAL ---------------- */
 export async function buscaMargem(cpf, cpfLegalRep = '') {
-    const t = await getToken();         // já pega o token com cache
+  const token = await getToken();
 
-    /* 1. TODOS os benefícios ------------------------------------------------ */
-    const url = new URL(BENEFITS_URL);
-    url.searchParams.append('cpf', cpf);
-    if (cpfLegalRep) url.searchParams.append('cpfLegalRepresentative', cpfLegalRep);
+  /* 1. Consulta benefícios -------------------------------------------------- */
+  const url = new URL(BENEFITS_URL);
+  url.searchParams.append('cpf', cpf);
+  if (cpfLegalRep) url.searchParams.append('cpfLegalRepresentative', cpfLegalRep);
 
-    const benRes = await axios
-        .get(url.toString(), { headers: { ...BASE_HEADERS, Authorization: `Bearer ${t}` } })
-        .catch(e => e.response);
+  const benRes = await axios
+    .get(url.toString(), {
+    //headers: { ...BASE_HEADERS, Authorization: `Bearer ${token}` },
+      headers: { ...BASE_HEADERS },
+      validateStatus: () => true,
+    })
+    .catch(e => e.response);
 
-    if (benRes?.data?.error) {
-        throw new Error(benRes.data.message || benRes.data.error);
-    }
-    console.log(benRes.data)
-    // -- filtra apenas os benefícios ativos
-    const beneficiosAtivos = (benRes.data || []).filter(
-        b => b.beneficio?.situacaoBeneficio === 'ATIVO',
+  if (benRes?.data?.error) {
+    throw new Error(benRes.data.message || benRes.data.error);
+  }
+
+  // Filtra apenas os benefícios ATIVOS
+  const beneficiosAtivos = (benRes.data || []).filter(
+    b => b.beneficio?.situacaoBeneficio === 'ATIVO',
+  );
+
+  if (!beneficiosAtivos.length) {
+    return 'Nenhum benefício ATIVO localizado para o CPF informado.';
+  }
+
+  /* 2. Avalia a margem ------------------------------------------------------ */
+  const blocos = beneficiosAtivos.map((b, idx) => {
+    const { beneficio } = b;
+    const numero = beneficio.beneficio;
+    const m = beneficio.margem || {};
+    const margemEmp = m.margemDisponivelEmprestimo ?? 0;
+
+    const possuiMargem = margemEmp >= 19; // <<< regra solicitada
+
+    return (
+      `Benefício ${idx + 1}: ${numero}\n` +
+      `Margem disponível para empréstimo: ${brl(margemEmp)}\n` +
+      (possuiMargem
+        ? 'Situação: POSSUI margem (≥ 19)\n'
+        : 'Situação: NÃO possui margem (< 19)\n')
     );
+  });
 
-    if (!beneficiosAtivos.length) {
-        return 'Nenhum benefício ATIVO localizado para o CPF informado.';
-    }
-
-    /* 2. Simula **cada** benefício ativo ------------------------------------ */
-    const resultados = await Promise.all(
-        beneficiosAtivos.map(async (b, idx) => {
-            const numeroBeneficio = b.beneficio.beneficio;
-            const convenio = b.beneficio?.IdOrigem || '3';
-
-            const payload = {
-                cpf,
-                numeroBeneficio,
-                idConvenio: convenio,
-                bancos: BANKS,            // apenas banco 2
-                margemOnline: true,
-            };
-
-            console.log(payload)
-
-            // tenta simular; se a API falhar, captura a mensagem
-            let simData, simErr;
-            try {
-                const simResp = await axios.post(
-                    SIMULATE_URL,
-                    payload,
-                    {
-                        headers: { ...BASE_HEADERS, Authorization: `Bearer ${t}` },
-                        validateStatus: () => true,
-                    },
-                );
-                if (simResp.status >= 400) {
-                    simErr = simResp.data?.error || simResp.data?.message ||
-                        `Erro ${simResp.status} na simulação`;
-                } else {
-                    simData = simResp.data;
-                }
-            } catch (e) {
-                simErr = e.message;
-            }
-            console.log(simData)
-            /* ----- formata a saída por benefício ----- */
-            const cabecalho =
-                `Benefício ${idx + 1}: ${numeroBeneficio} – Convênio ${convenio}\n`;
-
-            if (simErr) {
-                return cabecalho + `Não foi possível simular.\n${simErr}`;
-            }
-
-            const m = simData.margem || {};
-            let bloco =
-                cabecalho +
-                `Margem Empréstimo: ${brl(m.margemDisponivel || 0)}\n` +
-                `Margem Cartão RMC: ${brl(m.margemDisponivelCartao || 0)}\n` +
-                `Margem Cartão RCC: ${brl(m.margemDisponivelRCC || 0)}\n`;
-
-            // ofertas (status success) – pode estar ausente
-            const ofertas = [];
-            for (const [bank, arr] of Object.entries(simData.condicoes || {})) {
-                if (!Array.isArray(arr)) continue;
-
-                arr.filter(o => o.status === 'success').forEach(o => {
-                    // 1) Empréstimo tradicional (parcelas + valorParcela)
-                    if (o.parcelas && o.valorParcela != null) {
-                        ofertas.push(
-                            `• ${bank.toUpperCase()} – ${o.produto || 'Empréstimo'}: ` +
-                            `${o.parcelas} parcelas de ${brl(o.valorParcela)} ` +
-                            `recebe líquido na conta ${brl(o.valorLiquido)} ` +
-                            `taxa mensal ${o.taxaCliente ?? '-'}%`,
-                        );
-                    }
-                    // 2) Cartão (RMC / RCC): tem valorLimite + saque / compra
-                    else if (o.valorLimite != null) {
-                        ofertas.push(
-                            `• ${bank.toUpperCase()} – ${o.produto || 'Cartão'}: ` +
-                            `limite ${brl(o.valorLimite)}, ` +
-                            `saque ${brl(o.valorSaque)}, ` +
-                            `compra ${brl(o.valorCompra)}`,
-                        );
-                    }
-                });
-            }
-
-            bloco += ofertas.length
-                ? '\nCondições disponíveis:\n' + ofertas.join('\n')
-                : '\nNenhuma condição de crédito disponível.';
-
-            return bloco;
-        }),
-    );
-
-    /* 3. Junta tudo e devolve ---------------------------------------------- */
-    return resultados.join('\n\n');      // separa blocos por linha em branco
+  /* 3. Resultado final ------------------------------------------------------ */
+  return blocos.join('\n');
 }
-
-
