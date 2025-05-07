@@ -26,6 +26,12 @@ const LOGIN_URL = 'https://webservicesstaging.gfttech.com.br/api/v2/logar';
 const BENEFITS_URL = 'https://acelereaistaging.gfttech.com.br/api/v1/marketplace/benefits';
 const SIMULATE_URL = 'https://acelereaistaging.gfttech.com.br/api/v2/engine/simulate';
 
+
+const BANKS = (process.env.BANK_LIST || '2')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
+
 /*---------------- Credenciais ----------------*/
 const LOGIN = process.env.API_LOGIN;
 const PASSWORD = process.env.API_PASSWORD;
@@ -79,10 +85,10 @@ export async function buscaMargem(cpf, cpfLegalRep = '') {
                 cpf,
                 numeroBeneficio,
                 idConvenio: convenio,
-                bancos: ['2'],            // apenas banco 2
+                bancos: BANKS,            // apenas banco 2
                 margemOnline: true,
             };
-            
+
             console.log(payload)
 
             // tenta simular; se a API falhar, captura a mensagem
@@ -125,13 +131,26 @@ export async function buscaMargem(cpf, cpfLegalRep = '') {
             const ofertas = [];
             for (const [bank, arr] of Object.entries(simData.condicoes || {})) {
                 if (!Array.isArray(arr)) continue;
+
                 arr.filter(o => o.status === 'success').forEach(o => {
-                    ofertas.push(
-                        `• ${bank.toUpperCase()} – ${o.produto}: ` +
-                        `saque ${brl(o.valorSaque)}, ` +
-                        `compra ${brl(o.valorCompra)}, ` +
-                        `limite ${brl(o.valorLimite)}`,
-                    );
+                    // 1) Empréstimo tradicional (parcelas + valorParcela)
+                    if (o.parcelas && o.valorParcela != null) {
+                        ofertas.push(
+                            `• ${bank.toUpperCase()} – ${o.produto || 'Empréstimo'}: ` +
+                            `${o.parcelas} parcelas de ${brl(o.valorParcela)} ` +
+                            `recebe líquido na conta ${brl(o.valorLiquido)} ` +
+                            `taxa mensal ${o.taxaCliente ?? '-'}%`,
+                        );
+                    }
+                    // 2) Cartão (RMC / RCC): tem valorLimite + saque / compra
+                    else if (o.valorLimite != null) {
+                        ofertas.push(
+                            `• ${bank.toUpperCase()} – ${o.produto || 'Cartão'}: ` +
+                            `limite ${brl(o.valorLimite)}, ` +
+                            `saque ${brl(o.valorSaque)}, ` +
+                            `compra ${brl(o.valorCompra)}`,
+                        );
+                    }
                 });
             }
 
