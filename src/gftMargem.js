@@ -48,7 +48,7 @@ export async function buscaMargem(cpf, cpfLegalRep = '') {
 
   const benRes = await axios
     .get(url.toString(), {
-    //headers: { ...BASE_HEADERS, Authorization: `Bearer ${token}` },
+      //headers: { ...BASE_HEADERS, Authorization: `Bearer ${token}` },
       headers: { ...BASE_HEADERS },
       validateStatus: () => true,
     })
@@ -67,6 +67,17 @@ export async function buscaMargem(cpf, cpfLegalRep = '') {
     return 'Negado: Nenhum benefício ATIVO localizado para o CPF informado.';
   }
 
+  /* 1.1. Verifica representante legal -------------------------------------- */
+  const exigeRepresentante =
+    !cpfLegalRep &&
+    beneficiosAtivos.some(
+      b => b.beneficio?.possuiRepresentanteLegalProcurador === true,
+    );
+
+  if (exigeRepresentante) {
+    return 'Informe: O benefício possui um representante legal, informe o CPF do representante também.';
+  }
+
   /* 2. Avalia a margem ------------------------------------------------------ */
   const blocos = beneficiosAtivos.map((b, idx) => {
     const { beneficio } = b;
@@ -81,7 +92,7 @@ export async function buscaMargem(cpf, cpfLegalRep = '') {
       //`Possui Margem disponível para empréstimo: ${brl(margemEmp)}\n` +
       (possuiMargem
         ? 'Aceito: POSSUI margem para empréstimo\n'
-        : 'Negado: NÃO possui margem nenhuma para empréstimo (< 19)\n')
+        : 'Negado: NÃO possui margem nenhuma para empréstimo\n')
     );
   });
 
