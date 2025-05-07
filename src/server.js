@@ -1,3 +1,4 @@
+
 import express from 'express';
 import helmet  from 'helmet';
 import morgan  from 'morgan';
@@ -13,6 +14,9 @@ const port = process.env.PORT || 3000;
 app.use(helmet());
 app.use(morgan('tiny'));
 app.use(express.json());
+
+/* ---------- rota GET / ---------- */
+app.get('/', (_req, res) => res.send('GFT Margem API running'));
 
 /* ---------- rota GET /margem ---------- */
 /**
@@ -39,6 +43,6 @@ app.get('/margem', async (req, res) => {
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
 /* ---------- inicia o servidor ---------- */
-app.listen(port, () => {
-  console.log(`✓ GFT Margem service ready on http://localhost:${port}`);
+app.listen(port, '0.0.0.0', () => {
+  console.log(`✓ GFT Margem service ready on http://0.0.0.0:${port}`);
 });
