@@ -55,7 +55,20 @@ export async function buscaMargem(cpf, cpfLegalRep = '') {
     .catch(e => e.response);
 
   if (benRes?.data?.error) {
-    throw new Error(benRes.data.message || benRes.data.error);
+    const raw = benRes.data.message || benRes.data.error || '';
+
+    // Converte o “não encontrado” em resposta 200 amigável
+    if (/não\s*foram\s*encontrados\s*dados/i.test(raw)) {
+      return 'Inexistente: Nenhum benefício ATIVO localizado para o CPF informado.';
+    }
+
+    // CPF inválido
+    if (/cpf\s*inv[aá]lido/i.test(raw)) {
+      return 'O número do CPF do beneficiário está incorreto, digite um número válido.';
+    }
+
+    // Outros erros sobem para o server.js tratar como 500
+    throw new Error(raw);
   }
 
   // Filtra apenas os benefícios ATIVOS
@@ -64,7 +77,7 @@ export async function buscaMargem(cpf, cpfLegalRep = '') {
   );
 
   if (!beneficiosAtivos.length) {
-    return 'Negado: Nenhum benefício ATIVO localizado para o CPF informado.';
+    return 'Inexistente: Nenhum benefício ATIVO localizado para o CPF informado.';
   }
 
   /* 1.1. Verifica representante legal -------------------------------------- */
